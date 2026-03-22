@@ -16,7 +16,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Create PostgreSQL connection pool
 // Render provides DATABASE_URL securely containing all connection details!
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || ''}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'portfolio_db'}`
+    connectionString: process.env.DATABASE_URL || `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || ''}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'portfolio_db'}`,
+    ssl: { rejectUnauthorized: false }
 });
 
 // Automatically create table if it doesn't exist to prevent "Table does not exist" errors on Render
