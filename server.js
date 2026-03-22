@@ -20,6 +20,19 @@ const pool = new Pool({
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false // Render postgres requires SSL
 });
 
+// Automatically create table if it doesn't exist to prevent "Table does not exist" errors on Render
+pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        subject VARCHAR(255),
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+`).then(() => console.log('Messages table ensured in Postgres.'))
+  .catch((err) => console.error('Error ensuring table exists:', err));
+
 // Configure Nodemailer transporter (Gmail App Password)
 const transporter = nodemailer.createTransport({
     service: 'gmail',
