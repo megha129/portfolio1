@@ -66,22 +66,22 @@ app.post('/api/contact', async (req, res) => {
         };
 
         if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-             await transporter.sendMail(mailOptions);
+            await transporter.sendMail(mailOptions);
         } else {
-             console.log('Skipping email notification: EMAIL_USER or EMAIL_PASS not set.');
+            console.log('Skipping email notification: EMAIL_USER or EMAIL_PASS not set.');
         }
 
         res.status(200).json({ success: 'Message sent and saved successfully.' });
     } catch (error) {
         console.error('Error handling contact form submission:', error);
-        
+
         // Let's create the database and table if it doesn't exist to make setup easier for the user
         if (error.code === 'ER_BAD_DB_ERROR') {
-             return res.status(500).json({ error: 'Database does not exist. Please run setup first.' });
+            return res.status(500).json({ error: 'Database does not exist. Please run setup first.' });
         } else if (error.code === 'ER_NO_SUCH_TABLE') {
-             return res.status(500).json({ error: 'Messages table does not exist. Please run setup first.' });
+            return res.status(500).json({ error: 'Messages table does not exist. Please run setup first.' });
         }
-        res.status(500).json({ error: 'Failed to process message.' });
+        res.status(500).json({ error: 'Backend Error: ' + (error.message || 'Unknown error occurred') });
     }
 });
 
