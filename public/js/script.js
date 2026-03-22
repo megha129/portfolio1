@@ -22,11 +22,23 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             try {
-                // Send Request
-                const response = await fetch('/api/contact', {
+                // 1. Securely grab the Access Key from your private Render variables
+                const configRes = await fetch('/api/config');
+                const { key } = await configRes.json();
+
+                if (!key) {
+                    throw new Error("WEB3FORMS_KEY is missing in Render Environment!");
+                }
+
+                // 2. Attach the key to your message
+                formData.access_key = key;
+
+                // 3. Send Request Directly from your Browser to bypass Cloudflare and Firewalls!
+                const response = await fetch('https://api.web3forms.com/submit', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
                     },
                     body: JSON.stringify(formData)
                 });
@@ -34,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await response.json();
 
                 if (response.ok) {
-                    formStatus.textContent = result.success || 'Message sent successfully!';
+                    formStatus.textContent = result.message || 'Message sent successfully!';
                     formStatus.classList.add('status-success');
                     contactForm.reset();
                 } else {
