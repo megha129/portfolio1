@@ -16,9 +16,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Configure Nodemailer transporter (Gmail App Password)
+// Configure Nodemailer transporter (Gmail App Password) using Port 587 STARTTLS
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false, // upgrade later with STARTTLS
+    requireTLS: true,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
