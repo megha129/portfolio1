@@ -1,10 +1,5 @@
 require('dotenv').config();
-const dns = require('dns');
-if (dns.setDefaultResultOrder) {
-    dns.setDefaultResultOrder('ipv4first'); // Force IPv4 to fix Render ENETUNREACH IPv6 bug
-}
 const express = require('express');
-const nodemailer = require('nodemailer');
 const cors = require('cors');
 const path = require('path');
 
@@ -16,18 +11,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Configure Nodemailer transporter (Gmail App Password) using Port 587 STARTTLS
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // upgrade later with STARTTLS
-    requireTLS: true,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
-
 // API Routes
 app.post('/api/contact', async (req, res) => {
     const { name, email, subject, message } = req.body;
@@ -37,28 +20,33 @@ app.post('/api/contact', async (req, res) => {
     }
 
     try {
-        // Send Email Notification
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: process.env.EMAIL_USER, // Send to your own email account
-            subject: `New Portfolio Message from ${name}: ${subject || 'No subject'}`,
-            text: `You have received a new contact message.\n\nName: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
-            html: `
-                <h3>New Portfolio Contact</h3>
-                <p><strong>Name:</strong> ${name}</p>
-                <p><strong>Email:</strong> ${email}</p>
-                <p><strong>Subject:</strong> ${subject || 'No subject'}</p>
-                <p><strong>Message:</strong></p>
-                <p>${message}</p>
-            `
-        };
+        if (!process.env.WEB3FORMS_KEY) {
+             console.log('Skipping email notification: WEB3FORMS_KEY not set.');
+             return res.status(500).json({ error: 'Email configuration is missing on the server.' });
+        }
 
-        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-             await transporter.sendMail(mailOptions);
-             res.status(200).json({ success: 'Message sent successfully to your email!' });
+        // Send Email Notification securely over HTTPS bypassing Google's strict SMTP firewall
+        const apiResponse = await fetch("https://api.web3forms.com/submit", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json"
+            },
+            body: JSON.stringify({
+                access_key: process.env.WEB3FORMS_KEY,
+                subject: `New Portfolio Message from ${name}: ${subject || 'No subject'}`,
+                from_name: name,
+                email: email,
+                message: message
+            })
+        });
+
+        const json = await apiResponse.json();
+
+        if (apiResponse.status === 200) {
+            res.status(200).json({ success: 'Message sent successfully to your email!' });
         } else {
-             console.log('Skipping email notification: EMAIL_USER or EMAIL_PASS not set.');
-             res.status(500).json({ error: 'Email configuration is completely missing on the server.' });
+            res.status(500).json({ error: 'Email API Error: ' + json.message });
         }
     } catch (error) {
         console.error('Error handling contact form submission:', error);
