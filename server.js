@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
 const path = require('path');
@@ -13,15 +13,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Create MySQL connection pool
-const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'portfolio_db',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
+// Create PostgreSQL connection pool
+// Render provides DATABASE_URL securely containing all connection details!
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || ''}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'portfolio_db'}`,
+    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false // Render postgres requires SSL
 });
 
 // Configure Nodemailer transporter (Gmail App Password)
@@ -44,8 +40,8 @@ app.post('/api/contact', async (req, res) => {
     try {
         // 1. Save to MySQL database
         // Assuming there's a 'messages' table: (id, name, email, subject, message, created_at)
-        const [result] = await pool.query(
-            'INSERT INTO messages (name, email, subject, message) VALUES (?, ?, ?, ?)',
+        const result = await pool.query(
+            'INSERT INTO messages (name, email, subject, message) VALUES ($1, $2, $3, $4)',
             [name, email, subject || 'No subject', message]
         );
 
@@ -76,10 +72,10 @@ app.post('/api/contact', async (req, res) => {
         console.error('Error handling contact form submission:', error);
 
         // Let's create the database and table if it doesn't exist to make setup easier for the user
-        if (error.code === 'ER_BAD_DB_ERROR') {
-            return res.status(500).json({ error: 'Database does not exist. Please run setup first.' });
-        } else if (error.code === 'ER_NO_SUCH_TABLE') {
-            return res.status(500).json({ error: 'Messages table does not exist. Please run setup first.' });
+        if (error.code === '3D000') {
+             return res.status(500).json({ error: 'Database does not exist. Please run setup first.' });
+        } else if (error.code === '42P01') {
+             return res.status(500).json({ error: 'Messages table does not exist. Please run setup first.' });
         }
         res.status(500).json({ error: 'Backend Error: ' + (error.message || 'Unknown error occurred') });
     }
