@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
 const path = require('path');
@@ -12,26 +11,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Create PostgreSQL connection pool
-// Render provides DATABASE_URL securely containing all connection details!
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || ''}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'portfolio_db'}`,
-    ssl: { rejectUnauthorized: false }
-});
-
-// Automatically create table if it doesn't exist to prevent "Table does not exist" errors on Render
-pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        subject VARCHAR(255),
-        message TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-`).then(() => console.log('Messages table ensured in Postgres.'))
-  .catch((err) => console.error('Error ensuring table exists:', err));
 
 // Configure Nodemailer transporter (Gmail App Password)
 const transporter = nodemailer.createTransport({
@@ -51,14 +30,7 @@ app.post('/api/contact', async (req, res) => {
     }
 
     try {
-        // 1. Save to Database natively
-        // Free cloud databases take up to 60 seconds to wake up from sleep!
-        const result = await pool.query(
-            'INSERT INTO messages (name, email, subject, message) VALUES ($1, $2, $3, $4)',
-            [name, email, subject || 'No subject', message]
-        );
-
-        // 2. Send Email Notification
+        // Send Email Notification
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: process.env.EMAIL_USER, // Send to your own email account
@@ -75,21 +47,14 @@ app.post('/api/contact', async (req, res) => {
         };
 
         if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-            await transporter.sendMail(mailOptions);
+             await transporter.sendMail(mailOptions);
+             res.status(200).json({ success: 'Message sent successfully to your email!' });
         } else {
-            console.log('Skipping email notification: EMAIL_USER or EMAIL_PASS not set.');
+             console.log('Skipping email notification: EMAIL_USER or EMAIL_PASS not set.');
+             res.status(500).json({ error: 'Email configuration is completely missing on the server.' });
         }
-
-        res.status(200).json({ success: 'Message sent and saved successfully.' });
     } catch (error) {
         console.error('Error handling contact form submission:', error);
-
-        // Let's create the database and table if it doesn't exist to make setup easier for the user
-        if (error.code === '3D000') {
-             return res.status(500).json({ error: 'Database does not exist. Please run setup first.' });
-        } else if (error.code === '42P01') {
-             return res.status(500).json({ error: 'Messages table does not exist. Please run setup first.' });
-        }
         res.status(500).json({ error: 'Backend Error: ' + (error.message || 'Unknown error occurred') });
     }
 });
