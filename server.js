@@ -51,15 +51,12 @@ app.post('/api/contact', async (req, res) => {
     }
 
     try {
-        // 1. Save to Database with a rigorous 10-second timeout preventing endless hangs
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Database connection timed out! Is your DATABASE_URL correctly set in Render?")), 10000));
-        
-        const queryPromise = pool.query(
+        // 1. Save to Database natively
+        // Free cloud databases take up to 60 seconds to wake up from sleep!
+        const result = await pool.query(
             'INSERT INTO messages (name, email, subject, message) VALUES ($1, $2, $3, $4)',
             [name, email, subject || 'No subject', message]
         );
-
-        const result = await Promise.race([queryPromise, timeoutPromise]);
 
         // 2. Send Email Notification
         const mailOptions = {
